@@ -19,6 +19,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -38,7 +39,7 @@ import com.cg.otm.OnlineTestManagementRestful.service.OnlineTestService;
 
 
 
-
+@CrossOrigin(origins="http://localhost:4200")
 @RestController
 public class TestManagementController {
 	@Autowired 
@@ -86,9 +87,33 @@ public class TestManagementController {
 //		return "AddQuestion";
 //	}
 
+	@PostMapping(value="/addsinglequestion")
+	public ResponseEntity<?> addSingleQuestion(@RequestParam("testid") long id, @ModelAttribute("question") Question question){
+		OnlineTest test;
+		try {
+			test = testservice.searchTest(id);
+			if(test != null) {
+				Question addQuestion = new Question();
+				addQuestion.setQuestionTitle(question.getQuestionTitle());
+				addQuestion.setQuestionOptions(question.getQuestionOptions());
+				addQuestion.setQuestionAnswer(question.getQuestionAnswer());
+				addQuestion.setIsDeleted(false);
+				addQuestion.setChosenAnswer(0);
+				addQuestion.setMarksScored(0.0);
+				addQuestion.setQuestionMarks(question.getQuestionMarks());
+				addQuestion.setOnlinetest(test);
+				testservice.addQuestion(id, addQuestion);
+				return new ResponseEntity<Question>(addQuestion, HttpStatus.OK);
+			}
+		} catch (UserException e) {
+			return new ResponseEntity<String>("Question could not be added", HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+		return new ResponseEntity<String>("Question could not be added", HttpStatus.INTERNAL_SERVER_ERROR); 
+	}
+	
 	/*Mapping for the page to display after add question form is submitted*/
 	@PostMapping(value = "/addquestionsubmit")
-	public ResponseEntity<String> addQuestion(@RequestParam("testid") long id, @RequestParam("exfile") MultipartFile file) {
+	public ResponseEntity<String> addQuestion(@ModelAttribute("testid") long id, @ModelAttribute("exfile") MultipartFile file) {
 		try {
 			String UPLOAD_DIRECTORY = "E:\\Excel_Files";
 			String fileName = file.getOriginalFilename();
@@ -180,7 +205,7 @@ public class TestManagementController {
 //	}
 
 	/*Mapping for the page after form is submitted*/
-	@PostMapping(value = "removequestionsubmit")
+	@DeleteMapping(value = "removequestionsubmit")
 	public ResponseEntity<?> removeQuestion(@RequestParam("questionid") long id) {
 		Question deletedQuestion;
 		try {
@@ -425,18 +450,32 @@ public class TestManagementController {
 //		return "ListQuestion";
 //	}
 
-	@RequestMapping(value = "/listquestionsubmit", method = RequestMethod.POST)
+	@GetMapping(value = "/listquestionsubmit")
 	public ResponseEntity<?> submitListQuestion(@RequestParam("testId") long testId) {
 		try {
 			OnlineTest test = testservice.searchTest(testId);
 			List<Long> qlist = new ArrayList<Long>();
+			List<Question> questionList = new ArrayList<Question>();
 			Set<Question> questions = test.getTestQuestions();
 			questions.forEach(question->{
 				if(question.getIsDeleted()!=true) {
 					qlist.add(question.getQuestionId());
+					Question foundQuestion;
+					try {
+						foundQuestion = testservice.searchQuestion(question.getQuestionId());
+						Question newQuestion = new Question();
+						newQuestion.setQuestionId(foundQuestion.getQuestionId());
+						newQuestion.setQuestionTitle(foundQuestion.getQuestionTitle());
+						newQuestion.setQuestionOptions(foundQuestion.getQuestionOptions());
+						newQuestion.setQuestionMarks(foundQuestion.getQuestionMarks());
+						questionList.add(newQuestion);
+					} catch (UserException e) {
+						// TODO Auto-generated catch block
+						return;
+					}					
 				}
 			});
-			return new ResponseEntity<List<Long>>(qlist, HttpStatus.OK);
+			return new ResponseEntity<List<Question>>(questionList, HttpStatus.OK);
 		} catch (UserException e) {
 			return new ResponseEntity<String>("No Questions found!", HttpStatus.INTERNAL_SERVER_ERROR);
 		}
